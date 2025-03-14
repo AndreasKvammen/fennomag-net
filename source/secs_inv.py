@@ -29,7 +29,7 @@ from secsy import get_SECS_B_G_matrices  # Calculates SECS basis function matric
 # Import helper functions
 from helper_functions import (
     create_dir, load_magnetometer_data, trailing_average, get_common_stations,
-    create_secs_directories, save_magnetic_component, save_grid_metadata, save_secs_currents
+    create_secs_directories, save_magnetic_component, save_grid_metadata
 )
 
 def main():
@@ -80,7 +80,7 @@ def main():
     # Data Loading and Processing
     RE = 6371e3  # Earth radius in meters
     # Define data directories for X, Y, Z components
-    base_dir = '/Users/akv020/Tensorflow/Bcast/data'
+    base_dir = '/Users/akv020/Tensorflow/fennomag-net/data'
     Xdir = os.path.join(base_dir, 'XYZmagnetometer/X')
     Ydir = os.path.join(base_dir, 'XYZmagnetometer/Y')
     Zdir = os.path.join(base_dir, 'XYZmagnetometer/Z')

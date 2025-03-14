@@ -1,1 +1,0 @@
-# This script generates Spherical Elementary Current System(SECS) maps over Fennoscandia  

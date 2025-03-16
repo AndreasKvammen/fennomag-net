@@ -72,6 +72,7 @@ def trailing_average(df_original, interval_minutes=10):
     """
     Compute trailing average for the data at specified time intervals.
     This smooths the data and reduces noise in the measurements.
+    Uses only past values for each point (true trailing average).
     
     Args:
         df_original (DataFrame): Original data with timestamp column and station measurements
@@ -87,8 +88,8 @@ def trailing_average(df_original, interval_minutes=10):
     # First handle any duplicate timestamps by taking their mean
     df = df.groupby(level=0).mean()
     
-    # Calculate rolling mean over specified time window
-    df_rolled = df.rolling(f'{interval_minutes}T', closed='both').mean()
+    # Calculate trailing mean over specified time window (only using past values)
+    df_rolled = df.rolling(f'{interval_minutes}T', closed='right').mean()
     
     # Resample to regular intervals
     df_rolled = df_rolled.resample(f'{interval_minutes}T').mean()

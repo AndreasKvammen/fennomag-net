@@ -19,7 +19,6 @@ import os
 import numpy as np
 import pandas as pd
 from datetime import datetime
-import scipy.linalg
 import argparse
 
 # Import SECSY library components for Spherical Elementary Current Systems calculations
@@ -103,7 +102,7 @@ def main():
         data[comp] = data[comp][columns_to_keep]
     station_coordinates = station_coordinates.loc[common_stations]
     
-    # Apply time averaging to reduce noise in measurements
+    # Apply time averaging 
     for comp in ['X', 'Y', 'Z']:
         data[comp] = trailing_average(data[comp], interval_minutes=args.time_resolution)
 

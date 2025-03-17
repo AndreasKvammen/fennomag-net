@@ -113,7 +113,7 @@ def main():
     
     # 2. Load and Process Magnetometer Data
     # ------------------------------------
-    RE = 6371.2e3  # Earth radius in meters
+    RE = 6371e3  # Earth radius in meters
     
     # Define data directories for X, Y, Z components
     Xdir = os.path.join(args.data_dir, 'XYZmagnetometer/X')
@@ -166,8 +166,8 @@ def main():
         projection,
         L=args.grid_shape[1] * args.grid_resolution,  # East-West extent in meters
         W=args.grid_shape[0] * args.grid_resolution,  # North-South extent in meters
-        Lres=args.grid_shape[1],  # E-W resolution (number of points)
-        Wres=args.grid_shape[0],  # N-S resolution (number of points)
+        Lres=args.grid_shape[0],  # E-W resolution (number of points)
+        Wres=args.grid_shape[1],  # N-S resolution (number of points)
         R=Rgrid,                  # Grid radius (Earth radius + ionosphere height)
         wshift=1e3                # Small shift in grid placement (meters)
     )

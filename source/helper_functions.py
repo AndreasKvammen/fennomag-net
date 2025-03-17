@@ -27,6 +27,10 @@ Table of Contents:
    - calculate_secs_matrices: Calculate SECS basis matrices
    - process_timestamp: Process data for a single timestamp
 
+5. Visualization
+   - create_rgb_image: Create RGB image from magnetic field components
+   - save_rgb_image: Save RGB image to file
+
 These functions are designed to be modular and reusable, with clear documentation
 to help users understand the SECS calculation process.
 """
@@ -37,6 +41,7 @@ import pandas as pd
 from datetime import datetime
 from secsy import cubedsphere as cs  # Handles cubed sphere projections and grid operations
 from secsy import get_SECS_B_G_matrices  # Calculates SECS basis function matrices
+from PIL import Image
 
 # =====================================================================
 # 1. File and Directory Management
@@ -142,6 +147,29 @@ def save_grid_metadata(grid, base_path, grid_resolution, grid_shape, year):
 # =====================================================================
 # 2. Data Loading and Processing
 # =====================================================================
+def load_magnetic_component(timestamp, component_name, data_dir):
+    """
+    Load magnetic field component data for a specific timestamp.
+    
+    Args:
+        timestamp (datetime): Timestamp to load
+        component_name (str): Component name ('Be', 'Bn', or 'Bu')
+        data_dir (str): Directory containing SECS data
+        
+    Returns:
+        numpy.ndarray: 2D array of magnetic field values
+    """
+    year = str(timestamp.year)
+    filename = f"{component_name}_{timestamp.strftime('%Y%m%d_%H%M%S')}.csv"
+    file_path = os.path.join(data_dir, year, component_name, filename)
+    
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Magnetic field component file not found: {file_path}")
+    
+    # Load the CSV file (no headers, just data)
+    component_data = np.loadtxt(file_path, delimiter=',')
+    
+    return component_data
 
 def load_magnetometer_data(start_date, end_date, x_dir, y_dir, z_dir):
     """
@@ -486,3 +514,74 @@ def process_timestamp(timestamp_idx, timestamp, data, good_stations, station_coo
     Bu = GuB_full.dot(I_timestamp).reshape(grid.lat_mesh.shape)  # Vertical component
     
     return I_timestamp, Be, Bn, Bu
+
+# =====================================================================
+# 5. Visualization
+# =====================================================================
+
+def create_rgb_image(be, bn, bu, vmin=-1250, vmax=1250):
+    """
+    Create an RGB image from magnetic field components.
+    
+    The function maps each component to a color channel:
+    - Red: Eastward component (Be)
+    - Green: Northward component (Bn)
+    - Blue: Upward component (Bu)
+    
+    Values are discretized to 256 levels (8-bit per channel) between vmin and vmax.
+    
+    Args:
+        be (numpy.ndarray): Eastward magnetic field component
+        bn (numpy.ndarray): Northward magnetic field component
+        bu (numpy.ndarray): Upward magnetic field component
+        vmin (float): Minimum value for normalization
+        vmax (float): Maximum value for normalization
+        
+    Returns:
+        numpy.ndarray: RGB image array with values in [0, 255] (uint8)
+    """
+    # Linear mapping from [vmin, vmax] to [0, 255]
+    def normalize_to_uint8(data):
+        # Clip values to the specified range
+        data_clipped = np.clip(data, vmin, vmax)
+        
+        # Map from [vmin, vmax] to [0, 255]
+        normalized = ((data_clipped - vmin) / (vmax - vmin) * 255).astype(np.uint8)
+        
+        return normalized
+    
+    # Normalize each component to 8-bit (0-255)
+    r = normalize_to_uint8(be)
+    g = normalize_to_uint8(bn)
+    b = normalize_to_uint8(bu)
+    
+    # Stack the components to create an RGB image
+    rgb = np.stack([r, g, b], axis=2)
+    
+    return rgb
+
+def save_rgb_image(rgb_image, timestamp, data_dir):
+    """
+    Save RGB image to file.
+    
+    Args:
+        rgb_image (numpy.ndarray): RGB image array with values in [0, 255]
+        timestamp (datetime): Timestamp for the image
+        data_dir (str): Base directory for SECS data
+        
+    Returns:
+        str: Path to the saved image
+    """
+    year = str(timestamp.year)
+    figures_dir = os.path.join(data_dir, year, 'figures')
+    create_dir(figures_dir)
+    
+    # Create filename with timestamp
+    filename = f"secs_rgb_{timestamp.strftime('%Y%m%d_%H%M%S')}.png"
+    save_path = os.path.join(figures_dir, filename)
+    
+    # Save using PIL
+    img = Image.fromarray(rgb_image)
+    img.save(save_path)
+    
+    return save_path

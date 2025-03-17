@@ -36,7 +36,7 @@ import warnings
 
 # Import helper functions
 from helper_functions import (
-    create_dir, load_magnetic_component
+    create_dir, load_magnetic_component, filter_stations_by_grid, setup_secs_grid
 )
 
 # Suppress specific pcolormesh warnings
@@ -99,42 +99,52 @@ def load_station_coordinates(data_dir):
     Load station coordinates from CSV file.
     
     Args:
-        data_dir (str): Base directory for data
+        data_dir (str): Base directory for magnetometer data
         
     Returns:
         pandas.DataFrame: DataFrame with station coordinates
     """
     station_coords_file = os.path.join(data_dir, 'magnetometer/station_coordinates.csv')
+    
+    if not os.path.exists(station_coords_file):
+        raise FileNotFoundError(f"Station coordinates file not found: {station_coords_file}")
+    
     station_coordinates = pd.read_csv(station_coords_file)
     station_coordinates.set_index('station', inplace=True)
     
     return station_coordinates
 
-def load_grid_metadata(secs_dir, year):
+def load_grid_metadata(data_dir, year):
     """
-    Load SECS grid metadata from file.
+    Load grid metadata from text file.
     
     Args:
-        secs_dir (str): Directory containing SECS data
-        year (int or str): Year for the data
+        data_dir (str): Directory containing SECS data
+        year (int): Year for which to load metadata
         
     Returns:
         dict: Dictionary with grid metadata
     """
-    metadata_path = os.path.join(secs_dir, str(year), 'grid_metadata.txt')
+    metadata_file = os.path.join(data_dir, str(year), 'grid_metadata.txt')
     
-    if not os.path.exists(metadata_path):
-        raise FileNotFoundError(f"Grid metadata file not found: {metadata_path}")
+    if not os.path.exists(metadata_file):
+        raise FileNotFoundError(f"Grid metadata file not found: {metadata_file}")
     
     metadata = {}
-    with open(metadata_path, 'r') as f:
+    with open(metadata_file, 'r') as f:
         for line in f:
             key, value = line.strip().split(': ')
+            # Try to convert to float, but handle array values
             try:
-                # Try to convert to float if possible
-                metadata[key] = float(value)
+                # Check if it's an array representation
+                if '[' in value and ']' in value:
+                    # Parse array values
+                    value = value.strip('[]').split()
+                    metadata[key] = np.array([float(v) for v in value])
+                else:
+                    metadata[key] = float(value)
             except ValueError:
-                # Otherwise keep as string
+                # If conversion fails, keep as string
                 metadata[key] = value
     
     return metadata
@@ -149,21 +159,25 @@ def setup_grid_from_metadata(metadata):
     Returns:
         cs.CSgrid: Configured grid object
     """
+    grid_center = (metadata['grid_center_lon'], metadata['grid_center_lat'])
+    grid_shape = (int(metadata['grid_shape_NS']), int(metadata['grid_shape_EW']))
+    grid_resolution = metadata['grid_resolution'] * 1000  # Convert from km to meters
+    
     # Set up cubed sphere projection
     projection = cs.CSprojection(
-        position=(metadata['grid_center_lon'], metadata['grid_center_lat']),
+        position=grid_center,
         orientation=metadata['grid_orientation']
     )
     
     # Create the grid on the cubed-sphere
     grid = cs.CSgrid(
         projection,
-        L=metadata['grid_shape_EW'] * metadata['grid_resolution'] * 1000,  # East-West extent in meters
-        W=metadata['grid_shape_NS'] * metadata['grid_resolution'] * 1000,  # North-South extent in meters
-        Lres=int(metadata['grid_shape_NS']),  # E-W resolution (number of points)
-        Wres=int(metadata['grid_shape_EW']),  # N-S resolution (number of points)
-        R=metadata['Rgrid'],                  # Grid radius
-        wshift=1e3                            # Small shift in grid placement (meters)
+        L=grid_shape[1] * grid_resolution,  # East-West extent in meters
+        W=grid_shape[0] * grid_resolution,  # North-South extent in meters
+        Lres=grid_shape[0],  # E-W resolution (number of points)
+        Wres=grid_shape[1],  # N-S resolution (number of points)
+        R=metadata['Rgrid'],  # Grid radius (Earth radius + ionosphere height)
+        wshift=1e3           # Small shift in grid placement (meters)
     )
     
     return grid
@@ -173,129 +187,90 @@ def load_magnetometer_data(timestamp, data_dir):
     Load magnetometer data for a specific timestamp.
     
     Args:
-        timestamp (datetime): Timestamp to load data for
-        data_dir (str): Base directory for data
+        timestamp (datetime): Timestamp to load
+        data_dir (str): Base directory for magnetometer data
         
     Returns:
         tuple: (obs_x, obs_y, obs_z, stations) - Observed magnetic field components and station names
     """
-    Xdir = os.path.join(data_dir, 'XYZmagnetometer/X')
-    Ydir = os.path.join(data_dir, 'XYZmagnetometer/Y')
-    Zdir = os.path.join(data_dir, 'XYZmagnetometer/Z')
-    
-    date_str = timestamp.strftime('%Y-%m-%d')
-    
     # Construct file paths
-    x_file = os.path.join(Xdir, f"magnetometer_X_{date_str}.csv")
-    y_file = os.path.join(Ydir, f"magnetometer_Y_{date_str}.csv")
-    z_file = os.path.join(Zdir, f"magnetometer_Z_{date_str}.csv")
+    date_str = timestamp.strftime('%Y-%m-%d')
+    x_file = os.path.join(data_dir, 'XYZmagnetometer/X', f"magnetometer_X_{date_str}.csv")
+    y_file = os.path.join(data_dir, 'XYZmagnetometer/Y', f"magnetometer_Y_{date_str}.csv")
+    z_file = os.path.join(data_dir, 'XYZmagnetometer/Z', f"magnetometer_Z_{date_str}.csv")
     
-    if not os.path.exists(x_file) or not os.path.exists(y_file) or not os.path.exists(z_file):
-        raise FileNotFoundError(f"Magnetometer data files not found for {date_str}")
+    # Check if files exist
+    for file_path in [x_file, y_file, z_file]:
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Magnetometer data file not found: {file_path}")
     
     # Load data
     x_data = pd.read_csv(x_file)
     y_data = pd.read_csv(y_file)
     z_data = pd.read_csv(z_file)
     
-    # Convert timestamps
-    x_data['timestamp'] = pd.to_datetime(x_data['timestamp'])
-    y_data['timestamp'] = pd.to_datetime(y_data['timestamp'])
-    z_data['timestamp'] = pd.to_datetime(z_data['timestamp'])
+    # Convert timestamp to string format used in CSV
+    timestamp_str = timestamp.strftime('%Y-%m-%d %H:%M:%S')
     
-    # Get data for specific timestamp
-    x_row = x_data[x_data['timestamp'] == timestamp]
-    y_row = y_data[y_data['timestamp'] == timestamp]
-    z_row = z_data[z_data['timestamp'] == timestamp]
+    # Find the row with the matching timestamp
+    x_row = x_data[x_data['timestamp'] == timestamp_str]
+    y_row = y_data[y_data['timestamp'] == timestamp_str]
+    z_row = z_data[z_data['timestamp'] == timestamp_str]
     
-    if x_row.empty or y_row.empty or z_row.empty:
-        raise ValueError(f"No magnetometer data found for timestamp {timestamp}")
+    if len(x_row) == 0 or len(y_row) == 0 or len(z_row) == 0:
+        raise ValueError(f"No data found for timestamp: {timestamp_str}")
     
-    # Get station columns and extract observations
-    station_cols = [col for col in x_data.columns if col != 'timestamp']
-    obs_x = x_row[station_cols].values.flatten()
-    obs_y = y_row[station_cols].values.flatten()
-    obs_z = z_row[station_cols].values.flatten()
+    # Get station names (columns except 'timestamp')
+    stations = x_data.columns[1:].tolist()
     
-    return obs_x, obs_y, obs_z, station_cols
-
-def filter_stations_by_grid(stations, station_coordinates, grid):
-    """
-    Filter stations to keep only those inside the grid area.
+    # Extract values for each component
+    obs_x = x_row.iloc[0, 1:].values
+    obs_y = y_row.iloc[0, 1:].values
+    obs_z = z_row.iloc[0, 1:].values
     
-    Args:
-        stations (list): List of station names
-        station_coordinates (DataFrame): DataFrame with station coordinates
-        grid (cs.CSgrid): SECS grid object
-        
-    Returns:
-        list: List of stations inside the grid
-    """
-    stations_inside = []
-    
-    for station in stations:
-        if station in station_coordinates.index:
-            lon = station_coordinates.loc[station, 'longitude']
-            lat = station_coordinates.loc[station, 'latitude']
-            
-            # Check if station is inside grid
-            if grid.lon_mesh.min() <= lon <= grid.lon_mesh.max() and \
-               grid.lat_mesh.min() <= lat <= grid.lat_mesh.max():
-                stations_inside.append(station)
-    
-    return stations_inside
+    return obs_x, obs_y, obs_z, stations
 
 def plot_comparison(Be, Bn, Bu, lon_mesh, lat_mesh, timestamp, 
                    station_coords, stations_inside, obs_x, obs_y, obs_z,
-                   vmin, vmax):
+                   vmin, vmax, grid):
     """
-    Create comparison plot of SECS predictions and observations.
+    Create a comparison plot of SECS predictions and observations.
     
     Args:
         Be, Bn, Bu (numpy.ndarray): SECS magnetic field components
-        lon_mesh, lat_mesh (numpy.ndarray): Longitude and latitude meshes
+        lon_mesh, lat_mesh (numpy.ndarray): Longitude and latitude meshgrids
         timestamp (datetime): Timestamp for the plot
-        station_coords (DataFrame): DataFrame with station coordinates
+        station_coords (pandas.DataFrame): DataFrame with station coordinates
         stations_inside (list): List of stations inside the grid
         obs_x, obs_y, obs_z (numpy.ndarray): Observed magnetic field components
-        vmin, vmax (float): Min and max values for vertical field color mapping
+        vmin, vmax (float): Minimum and maximum values for vertical field color mapping
+        grid (cs.CSgrid): SECS grid object
         
     Returns:
         matplotlib.figure.Figure: Figure object
     """
+    # Create figure and axes
     fig = plt.figure(figsize=(12, 10))
     ax = fig.add_subplot(111)
     
-    # Create cubed sphere projection using the same parameters as the grid
-    projection = cs.CSprojection(
-        position=(lon_mesh.mean(), lat_mesh.mean()),
-        orientation=0.0
-    )
-    
-    # Create SECS grid
-    RE = 6371e3
-    grid = cs.CSgrid(
-        projection,
-        L=32 * 0.5e5,
-        W=32 * 0.5e5,
-        Lres=32,
-        Wres=32,
-        R=RE + 110e3,
-        wshift=1e3
-    )
-    
-    csax = CSplot(ax, grid)
+    # Create CSplot object for plotting on the cubed sphere
+    csax = CSplot(ax=ax, csgrid=grid)
     
     # Plot vertical component as color map
-    im = csax.pcolormesh(lon_mesh, lat_mesh, Bu, 
-                        cmap=plt.cm.bwr,
-                        vmin=vmin,
-                        vmax=vmax)
-    plt.colorbar(im, label='Vertical Magnetic Field (nT)')
+    pcm = csax.pcolormesh(
+        lon_mesh, lat_mesh, Bu,
+        vmin=vmin, vmax=vmax,
+        cmap='RdBu_r',
+        zorder=1
+    )
     
-    # Plot SECS horizontal predictions (black arrows)
-    step = 2  # Plot every nth arrow to avoid crowding
-    secs_quiver = csax.quiver(
+    # Add colorbar
+    cbar = plt.colorbar(pcm, ax=ax)
+    cbar.set_label('Vertical Magnetic Field (nT)')
+    
+    # Plot horizontal component as quiver (black arrows)
+    step = 1  # Downsample for clarity
+    csax.quiver(
         Be[::step, ::step], Bn[::step, ::step],
         lon_mesh[::step, ::step], lat_mesh[::step, ::step],
         scale=500,
@@ -433,7 +408,7 @@ def main():
             fig = plot_comparison(
                 Be, Bn, Bu, grid.lon_mesh, grid.lat_mesh, timestamp,
                 station_coords, stations_inside, obs_x, obs_y, obs_z,
-                args.vmin, args.vmax
+                args.vmin, args.vmax, grid
             )
             
             # Save plot

@@ -7,21 +7,27 @@ This script calculates and saves Spherical Elementary Current Systems (SECS) mat
 and magnetic field components based on magnetometer data. It performs SECS inversion
 to estimate ionospheric currents and calculates the resulting magnetic field.
 
+The script follows a modular approach with most functionality implemented in helper_functions.py,
+making the main workflow clear and easy to follow.
+
 Table of Contents:
 -----------------
 1. Import Libraries and Parse Arguments
-2. Load and Process Magnetometer Data
-3. Set Up SECS Grid
-4. Calculate SECS Basis Matrices
-5. Build Covariance Matrix
-6. Process Timestamps and Calculate Fields
-7. Save Results
+2. Main Function
+   a. Configuration and Data Loading
+   b. Station Filtering and Grid Setup
+   c. SECS Matrix Calculation
+   d. Timestamp Processing
+   e. Results Saving
 
 Usage:
 ------
 python secs_gen.py --start_date "2024-02-05 12:00" --end_date "2024-02-05 13:00" \
                   --grid_center 17.0 67.0 --grid_shape 30 18 --grid_resolution 100 \
                   --l0 1e-2 --l1 1e-2 --mirror_depth 1000 --time_resolution 1
+
+For detailed parameter descriptions, run:
+python secs_gen.py --help
 """
 
 # 1. Import Libraries and Parse Arguments
@@ -35,18 +41,20 @@ from datetime import datetime
 import argparse
 import traceback
 
-# Import SECSY library components for Spherical Elementary Current Systems calculations
-from secsy import cubedsphere as cs  # Handles cubed sphere projections and grid operations
-from secsy import get_SECS_B_G_matrices  # Calculates SECS basis function matrices
-
-# Import helper functions
+# Import helper functions that implement most of the functionality
 from helper_functions import (
     create_dir, load_magnetometer_data, trailing_average, get_common_stations,
-    create_secs_directories, save_magnetic_component, save_grid_metadata
+    create_secs_directories, save_magnetic_component, save_grid_metadata,
+    setup_secs_grid, filter_stations_by_grid, calculate_secs_matrices, process_timestamp
 )
 
 def parse_arguments():
-    """Parse command line arguments for SECS generation."""
+    """
+    Parse command line arguments for SECS generation.
+    
+    Returns:
+        argparse.Namespace: Parsed command line arguments
+    """
     parser = argparse.ArgumentParser(description='Generate SECS matrices and magnetic field components')
     
     # Time-related parameters
@@ -90,7 +98,16 @@ def parse_arguments():
     return args
 
 def main():
-    """Main function to generate SECS matrices and magnetic field components."""
+    """
+    Main function to generate SECS matrices and magnetic field components.
+    
+    This function implements the complete workflow:
+    1. Parse arguments and load magnetometer data
+    2. Filter stations and set up the SECS grid
+    3. Calculate SECS basis matrices
+    4. Process each timestamp to calculate currents and fields
+    5. Save results to files
+    """
     # Parse command line arguments
     args = parse_arguments()
     
@@ -111,16 +128,12 @@ def main():
     print(f"Output directory: {args.output_dir}")
     print("=====================================\n")
     
-    # 2. Load and Process Magnetometer Data
-    # ------------------------------------
-    RE = 6371e3  # Earth radius in meters
-    
     # Define data directories for X, Y, Z components
     Xdir = os.path.join(args.data_dir, 'XYZmagnetometer/X')
     Ydir = os.path.join(args.data_dir, 'XYZmagnetometer/Y')
     Zdir = os.path.join(args.data_dir, 'XYZmagnetometer/Z')
     
-    # Load magnetometer data for all components within specified time range
+    # Step 1: Load magnetometer data for all components within specified time range
     print("Loading magnetometer data...")
     data = load_magnetometer_data(start_date, end_date, Xdir, Ydir, Zdir)
     if any(data[comp] is None for comp in ['X', 'Y', 'Z']):
@@ -132,7 +145,7 @@ def main():
         print(f"Time range: {data[comp]['timestamp'].min()} to {data[comp]['timestamp'].max()}")
         print(f"Number of stations: {len(data[comp].columns) - 1}")  # -1 for timestamp column
     
-    # Load station coordinates and prepare for processing
+    # Step 2: Load station coordinates and prepare for processing
     station_coords_file = os.path.join(args.data_dir, 'magnetometer/station_coordinates.csv')
     station_coordinates = pd.read_csv(station_coords_file)
     station_coordinates.set_index('station', inplace=True)
@@ -148,53 +161,26 @@ def main():
         data[comp] = data[comp][columns_to_keep]
     station_coordinates = station_coordinates.loc[common_stations]
     
-    # 3. Set Up SECS Grid
-    # ------------------
-    # Define Earth radius and grid altitude
-    ionosphere = True
-    Rgrid = RE + 110e3 if ionosphere else RE  # Place grid at ionospheric altitude or ground
-    
-    # Set up cubed sphere projection
+    # Step 3: Set up SECS grid
     print("\nSetting up SECS grid...")
-    projection = cs.CSprojection(
-        position=(args.grid_center[0], args.grid_center[1]),  # (lon, lat) in degrees
-        orientation=0.0  # orientation of the local x-axis on the cubed-sphere face
-    )
-    
-    # Create the grid on the cubed-sphere
-    grid = cs.CSgrid(
-        projection,
-        L=args.grid_shape[1] * args.grid_resolution,  # East-West extent in meters
-        W=args.grid_shape[0] * args.grid_resolution,  # North-South extent in meters
-        Lres=args.grid_shape[0],  # E-W resolution (number of points)
-        Wres=args.grid_shape[1],  # N-S resolution (number of points)
-        R=Rgrid,                  # Grid radius (Earth radius + ionosphere height)
-        wshift=1e3                # Small shift in grid placement (meters)
+    grid = setup_secs_grid(
+        grid_center=args.grid_center,
+        grid_shape=args.grid_shape,
+        grid_resolution=args.grid_resolution,
+        ionosphere=True
     )
     
     print(f"Grid created with {grid.size} points")
     print(f"Grid spans approximately {args.grid_resolution/1000 * args.grid_shape[1]:.1f} km E-W × "
           f"{args.grid_resolution/1000 * args.grid_shape[0]:.1f} km N-S")
     
-    # Check which stations are inside the grid
+    # Filter stations to keep only those inside the grid
     print("Checking which stations are inside the grid...")
-    stations_inside = []
-    stations_outside = []
-    
-    for station in common_stations:
-        if station in station_coordinates.index:
-            lon = station_coordinates.loc[station, 'longitude']
-            lat = station_coordinates.loc[station, 'latitude']
-            is_inside = grid.ingrid(lon, lat)
-            
-            if is_inside:
-                stations_inside.append(station)
-            else:
-                stations_outside.append(station)
+    stations_inside = filter_stations_by_grid(common_stations, station_coordinates, grid)
     
     print(f"Stations inside grid: {len(stations_inside)}/{len(common_stations)}")
-    if stations_outside:
-        print(f"Dropping {len(stations_outside)} stations outside grid")
+    if len(stations_inside) < len(common_stations):
+        print(f"Dropping {len(common_stations) - len(stations_inside)} stations outside grid")
     
     # Filter data and coordinates to keep only stations inside the grid
     for comp in ['X', 'Y', 'Z']:
@@ -202,52 +188,21 @@ def main():
         data[comp] = data[comp][columns_to_keep]
     station_coordinates = station_coordinates.loc[stations_inside]
     
-    # 4. Calculate SECS Basis Matrices
-    # ------------------------------
-    # Get station coordinates for SECS basis function calculation
-    lon_mag = station_coordinates.longitude.values
-    lat_mag = station_coordinates.latitude.values
-    
-    # Calculate SECS basis function matrices relating current amplitudes to magnetic field components
-    print("\nCalculating SECS basis matrices for stations...")
-    
-    # Set up mirror method for induction nullification if enabled
-    induction_nullification_radius = RE - args.mirror_depth * 1000 if args.mirror_depth != 9999 else None
-    if induction_nullification_radius is not None:
+    # Step 4: Calculate SECS basis matrices
+    print("\nCalculating SECS basis matrices...")
+    if args.mirror_depth != 9999:
         print(f"Using mirror method with superconducting layer at depth {args.mirror_depth} km")
     else:
         print("Mirror method disabled")
     
-    # Calculate SECS basis matrices for stations
-    # These matrices relate SECS amplitudes to magnetic field components at station locations
-    GeB_mag, GnB_mag, GuB_mag = get_SECS_B_G_matrices(
-        lat_mag, lon_mag, RE, grid.lat, grid.lon,
-        induction_nullification_radius=induction_nullification_radius
+    secs_matrices = calculate_secs_matrices(
+        grid=grid,
+        station_coordinates=station_coordinates,
+        stations=stations_inside,
+        mirror_depth=args.mirror_depth
     )
     
-    print(f"SECS basis matrices for stations calculated with shapes: {GeB_mag.shape}, {GnB_mag.shape}, {GuB_mag.shape}")
-    
-    # Calculate SECS matrices for the full grid
-    # These matrices will be used to calculate magnetic field components at all grid points
-    print("\nCalculating SECS matrices for the full grid...")
-    GeB_full, GnB_full, GuB_full = get_SECS_B_G_matrices(
-        grid.lat_mesh.flatten(),
-        grid.lon_mesh.flatten(),
-        RE,
-        grid.lat,
-        grid.lon,
-        induction_nullification_radius=induction_nullification_radius
-    )
-    print("SECS matrices for full grid calculated successfully")
-    print(f"Matrix shapes: {GeB_full.shape}, {GnB_full.shape}, {GuB_full.shape}")
-    
-    # 5. Build Covariance Matrix
-    # ------------------------
-    # Get list of stations for inversion
-    good_stations = [col for col in data['X'].columns if col != 'timestamp']
-    print(f"\nNumber of stations for inversion: {len(good_stations)}")
-    
-    # Apply time averaging to smooth the data
+    # Step 5: Apply time averaging to smooth the data
     print("Applying trailing average...")
     for comp in ['X', 'Y', 'Z']:
         data[comp] = trailing_average(data[comp], interval_minutes=args.time_resolution)
@@ -257,114 +212,38 @@ def main():
     print(f"First timestamp: {timestamps.min()}")
     print(f"Last timestamp: {timestamps.max()}")
     
-    # Build covariance matrix from magnetic field components
-    print("\nBuilding covariance matrix from magnetic field components...")
-    
-    # Extract magnetic field data for all stations
-    By_day = data['Y'][good_stations].values
-    Bx_day = data['X'][good_stations].values
-    Bz_day = -data['Z'][good_stations].values  # Note: Z component is negated
-    
-    # Combine all magnetic field components for covariance calculation
-    D_all = np.hstack([By_day, Bx_day, Bz_day])
-    mask = np.isnan(D_all)
-    D_all_ma = np.ma.array(D_all, mask=mask)
-    
-    # Calculate correlation coefficient matrix between components
-    cv = np.ma.corrcoef(D_all_ma.T)
-    cv = np.ma.filled(cv, fill_value=0.0)
-    
-    # Calculate inverse of correlation matrix for weighting
-    cvinv = np.linalg.lstsq(cv, np.eye(cv.shape[0]), rcond=None)[0]
-    
-    print(f"Correlation matrix shape: {cv.shape}")
-    
-    # Calculate regularization matrices using grid's built-in methods
-    De, Dn = grid.get_Le_Ln()  # Get matrices for E-W and N-S derivatives
-    DTD = De.T @ De + Dn.T @ Dn  # Combined regularization matrix
-    
-    # 6. Process Timestamps and Calculate Fields
-    # ---------------------------------------
-    # Initialize storage for results
-    I_timestamps = {}  # Store current amplitudes for each timestamp
-    total_timestamps = len(timestamps)
-    
-    # Create directories for SECS components
+    # Step 6: Create directories for SECS components
     create_secs_directories(args.output_dir, start_date.year)
     
     # Save grid metadata once at the start
     save_grid_metadata(grid, args.output_dir, args.grid_resolution/1000, args.grid_shape, start_date.year)
     
-    # Process each timestamp
+    # Prepare regularization parameters
+    regularization_params = {
+        'l0': args.l0,
+        'l1': args.l1
+    }
+    
+    # Step 7: Process each timestamp
+    total_timestamps = len(timestamps)
     print(f"\nProcessing {total_timestamps} timestamps...")
     
     for i, this_time in enumerate(timestamps):
         try:
             print(f"Processing timestamp {i+1}/{total_timestamps}: {this_time}")
             
-            # Extract magnetic field components for current timestamp
-            By_i = data['Y'].iloc[i][good_stations].astype(float).values
-            Bx_i = data['X'].iloc[i][good_stations].astype(float).values
-            Bz_i = -data['Z'].iloc[i][good_stations].astype(float).values  # Note: Z component is negated
+            # Process this timestamp to get currents and magnetic fields
+            I_timestamp, Be, Bn, Bu = process_timestamp(
+                timestamp_idx=i,
+                timestamp=this_time,
+                data=data,
+                good_stations=stations_inside,
+                station_coordinates=station_coordinates,
+                grid=grid,
+                secs_matrices=secs_matrices,
+                regularization_params=regularization_params
+            )
             
-            # Create mask for valid measurements (not NaN)
-            valid_mask = ~(np.isnan(By_i) | np.isnan(Bx_i) | np.isnan(Bz_i))
-            
-            # Filter measurements and combine into observation vector
-            By_i = By_i[valid_mask]
-            Bx_i = Bx_i[valid_mask]
-            Bz_i = Bz_i[valid_mask]
-            d = np.hstack([By_i, Bx_i, Bz_i])
-            
-            # Get valid stations and their indices
-            valid_stations = [st for j, st in enumerate(good_stations) if valid_mask[j]]
-            idx = [station_coordinates.index.get_loc(st) for st in valid_stations]
-            
-            # Select relevant rows from SECS matrices
-            GeB_i = GeB_mag[idx, :]
-            GnB_i = GnB_mag[idx, :]
-            GuB_i = GuB_mag[idx, :]
-            
-            # Combine matrices for all components
-            G = np.vstack([GeB_i, GnB_i, GuB_i])
-            
-            # Use identity matrix for weighting (simpler approach)
-            cvinv_valid = np.eye(len(d))
-            
-            # Apply weighting to form normal equations
-            # GTG = G^T * cvinv * G (coefficient matrix)
-            # GTd = G^T * cvinv * d (right-hand side)
-            GTG = G.T @ cvinv_valid @ G
-            GTd = G.T @ cvinv_valid @ d
-            
-            # Calculate regularization scaling factors
-            # These ensure proper balance between data fit and regularization
-            scale_gtg = np.median(np.diag(GTG))
-            scale_dtd = np.median(np.diag(DTD)) if DTD.size > 0 else 1
-            
-            # Compute regularization terms
-            # T0: Zero-order term (amplitude damping)
-            # T1: First-order term (smoothness constraint)
-            T0 = args.l0 * scale_gtg
-            T1 = args.l1 * scale_gtg / (scale_dtd if scale_dtd != 0 else 1e-10)
-            
-            # Combined regularization matrix
-            R = T0 * np.eye(grid.size) + T1 * DTD
-            
-            # Solve regularized inverse problem
-            # (GTG + R)^-1 * GTd = I
-            Cmpost = np.linalg.lstsq(GTG + R, np.eye(GTG.shape[0]), rcond=None)[0]
-            I_timestamp = Cmpost @ GTd
-            I_timestamps[str(this_time)] = I_timestamp.tolist()  # Store for potential later use
-            
-            # Calculate magnetic field components at all grid points
-            # B = G * I
-            Be = GeB_full.dot(I_timestamp).reshape(grid.lat_mesh.shape)
-            Bn = GnB_full.dot(I_timestamp).reshape(grid.lat_mesh.shape)
-            Bu = GuB_full.dot(I_timestamp).reshape(grid.lat_mesh.shape)
-            
-            # 7. Save Results
-            # -------------
             # Save each magnetic field component
             save_magnetic_component(Be, this_time, 'Be', args.output_dir)
             save_magnetic_component(Bn, this_time, 'Bn', args.output_dir)
@@ -375,12 +254,6 @@ def main():
         except Exception as e:
             print(f"Error processing timestamp {this_time}: {str(e)}")
             traceback.print_exc()
-    
-    # Save current amplitudes to a JSON file for potential later use
-    currents_file = os.path.join(args.output_dir, str(start_date.year), 
-                               f"currents_{start_date.strftime('%Y%m%d_%H%M')}_to_{end_date.strftime('%Y%m%d_%H%M')}.json")
-    with open(currents_file, 'w') as f:
-        json.dump(I_timestamps, f)
     
     print("\nProcessing completed successfully.")
     print(f"Results saved to {args.output_dir}")

@@ -120,7 +120,7 @@ def main():
     grid_shape = tuple(args.grid_shape)    # (North-South, East-West) points
 
     # Physical size in each dimension (approx. region coverage), in meters
-    grid_dim_ns = grid_shape[0] * args.grid_resolution  # North-South dimension
+    grid_dim_ns = grid_shape[1] * args.grid_resolution  # North-South dimension
     grid_dim_ew = grid_shape[1] * args.grid_resolution  # East-West dimension
 
     # Set up grid altitude

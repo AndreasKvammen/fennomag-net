@@ -276,7 +276,8 @@ def plot_comparison(Be, Bn, Bu, lon_mesh, lat_mesh, timestamp,
         scale=500,
         scale_units='inches',
         color='black',
-        width=0.003,
+        width=0.0015,
+        alpha=0.5,
         headwidth=3,
         headlength=5,
         label='SECS Prediction',
@@ -301,7 +302,7 @@ def plot_comparison(Be, Bn, Bu, lon_mesh, lat_mesh, timestamp,
             csax.scatter(
                 station_lons,
                 station_lats,
-                c='blue', marker='.', s=30, zorder=11,
+                c='blue', marker='.', s=30, alpha=0.5, zorder=11,
                 label='Magnetometer Stations'
             )
             
@@ -323,6 +324,7 @@ def plot_comparison(Be, Bn, Bu, lon_mesh, lat_mesh, timestamp,
                     scale_units='inches',
                     color='blue',
                     width=0.005,
+                    alpha=0.5,
                     headwidth=4,
                     headlength=6,
                     label='Observations',
@@ -330,7 +332,7 @@ def plot_comparison(Be, Bn, Bu, lon_mesh, lat_mesh, timestamp,
                 )
                 
                 # Add quiver key for scale reference
-                ax.quiverkey(obs_quiver, 0.1, 0.9, 200, '200 nT',
+                ax.quiverkey(obs_quiver, 0.13, 0.975, 500, '500 nT',
                             labelpos='E',
                             coordinates='figure')
     
@@ -413,7 +415,7 @@ def main():
             
             # Save plot
             output_file = os.path.join(output_dir, f"secs_comp_{timestamp.strftime('%Y%m%d_%H%M%S')}.png")
-            fig.savefig(output_file, dpi=300, bbox_inches='tight')
+            fig.savefig(output_file, dpi=100, bbox_inches='tight')
             plt.close(fig)
             
             print(f"  Plot saved to: {output_file}")

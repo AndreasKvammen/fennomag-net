@@ -11,11 +11,12 @@ Each component is mapped to a color channel in the RGB image:
 
 The script reads magnetic field data for a specified time range and creates
 visualizations that help identify patterns in the magnetic field variations.
+Values are discretized to 256 levels (8-bit per channel) between -1250 nT and +1250 nT.
 
 Usage:
 ------
 python secs_viz.py --start_date "2024-02-05 12:00" --end_date "2024-02-05 13:00" \
-                  --output_dir /path/to/output
+                  --data_dir /path/to/secs/data
 
 For detailed parameter descriptions, run:
 python secs_viz.py --help
@@ -27,8 +28,6 @@ import argparse
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
-import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
 from PIL import Image
 
 # Import helper functions
@@ -49,56 +48,12 @@ def parse_arguments():
     parser.add_argument('--end_date', type=str, required=True, 
                         help='End date and time (format: "YYYY-MM-DD HH:MM")')
     
-    # Data directories
+    # Data directory
     parser.add_argument('--data_dir', type=str, default='/Users/akv020/Tensorflow/fennomag-net/data/secs', 
                         help='Directory containing SECS data')
-    parser.add_argument('--output_dir', type=str, 
-                        default='/Users/akv020/Tensorflow/fennomag-net/data/secs', 
-                        help='Output directory for figures (will create a "figures" subdirectory)')
     
     args = parser.parse_args()
     return args
-
-def read_grid_metadata(data_dir, year):
-    """
-    Read grid metadata from the grid_metadata.txt file.
-    
-    Args:
-        data_dir (str): Directory containing SECS data
-        year (int): Year of the data
-        
-    Returns:
-        dict: Grid metadata including shape, resolution, and center
-    """
-    metadata_file = os.path.join(data_dir, str(year), 'grid_metadata.txt')
-    
-    if not os.path.exists(metadata_file):
-        raise FileNotFoundError(f"Grid metadata file not found: {metadata_file}")
-    
-    metadata = {}
-    with open(metadata_file, 'r') as f:
-        for line in f:
-            if ':' in line:
-                key, value = line.strip().split(':', 1)
-                key = key.strip()
-                value = value.strip()
-                
-                if key == 'Grid shape':
-                    # Parse "30×18 points" format
-                    shape_str = value.split(' ')[0]
-                    ns, ew = shape_str.split('×')
-                    metadata['grid_shape'] = (int(ns), int(ew))
-                elif key == 'Grid resolution':
-                    # Parse "100.0 km" format
-                    resolution = float(value.split(' ')[0])
-                    metadata['grid_resolution'] = resolution
-                elif key == 'Grid center':
-                    # Parse "17.0°E, 67.0°N" format
-                    lon = float(value.split('°')[0])
-                    lat = float(value.split(',')[1].split('°')[0])
-                    metadata['grid_center'] = (lon, lat)
-    
-    return metadata
 
 def load_magnetic_component(timestamp, component_name, data_dir):
     """
@@ -128,59 +83,65 @@ def create_rgb_image(be, bn, bu, vmin=-1250, vmax=1250):
     """
     Create an RGB image from magnetic field components.
     
+    The function maps each component to a color channel:
+    - Red: Eastward component (Be)
+    - Green: Northward component (Bn)
+    - Blue: Upward component (Bu)
+    
+    Values are discretized to 256 levels (8-bit per channel) between vmin and vmax.
+    
     Args:
-        be (numpy.ndarray): Eastward component (mapped to red)
-        bn (numpy.ndarray): Northward component (mapped to green)
-        bu (numpy.ndarray): Upward component (mapped to blue)
+        be (numpy.ndarray): Eastward magnetic field component
+        bn (numpy.ndarray): Northward magnetic field component
+        bu (numpy.ndarray): Upward magnetic field component
         vmin (float): Minimum value for normalization
         vmax (float): Maximum value for normalization
         
     Returns:
-        numpy.ndarray: RGB image array with values in [0, 1]
+        numpy.ndarray: RGB image array with values in [0, 255] (uint8)
     """
-    # Create a normalization function to map values to [0, 1]
-    norm = Normalize(vmin=vmin, vmax=vmax)
+    # Linear mapping from [vmin, vmax] to [0, 255]
+    def normalize_to_uint8(data):
+        # Clip values to the specified range
+        data_clipped = np.clip(data, vmin, vmax)
+        
+        # Map from [vmin, vmax] to [0, 255]
+        normalized = ((data_clipped - vmin) / (vmax - vmin) * 255).astype(np.uint8)
+        
+        return normalized
     
-    # Normalize each component
-    r = norm(be)
-    g = norm(bn)
-    b = norm(bu)
-    
-    # Clip values to [0, 1] range
-    r = np.clip(r, 0, 1)
-    g = np.clip(g, 0, 1)
-    b = np.clip(b, 0, 1)
+    # Normalize each component to 8-bit (0-255)
+    r = normalize_to_uint8(be)
+    g = normalize_to_uint8(bn)
+    b = normalize_to_uint8(bu)
     
     # Stack the components to create an RGB image
     rgb = np.stack([r, g, b], axis=2)
     
     return rgb
 
-def save_rgb_image(rgb_image, timestamp, output_dir):
+def save_rgb_image(rgb_image, timestamp, data_dir):
     """
     Save RGB image to file.
     
     Args:
-        rgb_image (numpy.ndarray): RGB image array with values in [0, 1]
+        rgb_image (numpy.ndarray): RGB image array with values in [0, 255]
         timestamp (datetime): Timestamp for the image
-        output_dir (str): Output directory for figures
+        data_dir (str): Base directory for SECS data
         
     Returns:
         str: Path to the saved image
     """
     year = str(timestamp.year)
-    figures_dir = os.path.join(output_dir, year, 'figures')
+    figures_dir = os.path.join(data_dir, year, 'figures')
     create_dir(figures_dir)
     
     # Create filename with timestamp
     filename = f"secs_rgb_{timestamp.strftime('%Y%m%d_%H%M%S')}.png"
     save_path = os.path.join(figures_dir, filename)
     
-    # Convert to 8-bit RGB (0-255)
-    rgb_uint8 = (rgb_image * 255).astype(np.uint8)
-    
-    # Save using PIL (better quality control than matplotlib)
-    img = Image.fromarray(rgb_uint8)
+    # Save using PIL
+    img = Image.fromarray(rgb_image)
     img.save(save_path)
     
     return save_path
@@ -216,17 +177,11 @@ def main():
     start_date = datetime.strptime(args.start_date, '%Y-%m-%d %H:%M')
     end_date = datetime.strptime(args.end_date, '%Y-%m-%d %H:%M')
     
-    # Read grid metadata
-    grid_metadata = read_grid_metadata(args.data_dir, start_date.year)
-    
     # Print configuration
     print("\n=== SECS Visualization Configuration ===")
     print(f"Analysis period: {start_date} to {end_date}")
-    print(f"Grid shape: {grid_metadata['grid_shape'][0]}×{grid_metadata['grid_shape'][1]} points")
-    print(f"Grid resolution: {grid_metadata['grid_resolution']} km")
-    print(f"Grid center: {grid_metadata['grid_center'][0]}°E, {grid_metadata['grid_center'][1]}°N")
     print(f"Data directory: {args.data_dir}")
-    print(f"Output directory: {args.output_dir}")
+    print(f"Value range: -1250 nT to +1250 nT (discretized to 256 levels)")
     print("========================================\n")
     
     # Generate list of timestamps to process
@@ -249,7 +204,7 @@ def main():
             rgb_image = create_rgb_image(be, bn, bu, vmin=-1250, vmax=1250)
             
             # Save RGB image
-            save_path = save_rgb_image(rgb_image, timestamp, args.output_dir)
+            save_path = save_rgb_image(rgb_image, timestamp, args.data_dir)
             
             print(f"  Image saved to: {save_path}")
             

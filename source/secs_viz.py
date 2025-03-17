@@ -11,12 +11,12 @@ Each component is mapped to a color channel in the RGB image:
 
 The script reads magnetic field data for a specified time range and creates
 visualizations that help identify patterns in the magnetic field variations.
-Values are discretized to 256 levels (8-bit per channel) between -1250 nT and +1250 nT.
+Values are discretized to 256 levels (8-bit per channel) between vmin and vmax.
 
 Usage:
 ------
 python secs_viz.py --start_date "2024-02-05 12:00" --end_date "2024-02-05 13:00" \
-                  --data_dir /path/to/secs/data
+                  --data_dir /path/to/secs/data --vmin -1250 --vmax 1250
 
 For detailed parameter descriptions, run:
 python secs_viz.py --help
@@ -53,6 +53,12 @@ def parse_arguments():
     # Data directory
     parser.add_argument('--data_dir', type=str, default='/Users/akv020/Tensorflow/fennomag-net/data/secs', 
                         help='Directory containing SECS data')
+    
+    # Value range for color mapping
+    parser.add_argument('--vmin', type=float, default=-1250,
+                        help='Minimum value for color mapping (default: -1250 nT)')
+    parser.add_argument('--vmax', type=float, default=1250,
+                        help='Maximum value for color mapping (default: 1250 nT)')
     
     args = parser.parse_args()
     return args
@@ -92,7 +98,7 @@ def main():
     print("\n=== SECS Visualization Configuration ===")
     print(f"Analysis period: {start_date} to {end_date}")
     print(f"Data directory: {args.data_dir}")
-    print(f"Value range: -1250 nT to +1250 nT (discretized to 256 levels)")
+    print(f"Value range: {args.vmin} nT to {args.vmax} nT (discretized to 256 levels)")
     print("========================================\n")
     
     # Generate list of timestamps to process
@@ -112,7 +118,7 @@ def main():
             bu = load_magnetic_component(timestamp, 'Bu', args.data_dir)
             
             # Create RGB image
-            rgb_image = create_rgb_image(be, bn, bu, vmin=-1250, vmax=1250)
+            rgb_image = create_rgb_image(be, bn, bu, vmin=args.vmin, vmax=args.vmax)
             
             # Save RGB image
             save_path = save_rgb_image(rgb_image, timestamp, args.data_dir)

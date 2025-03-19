@@ -1,0 +1,7 @@
+grid_center_lon: 17.0
+grid_center_lat: 67.0
+grid_orientation: [1. 0.]
+grid_resolution: 100
+grid_shape_NS: 32
+grid_shape_EW: 32
+Rgrid: 6481000.0

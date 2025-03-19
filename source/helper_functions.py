@@ -519,7 +519,7 @@ def process_timestamp(timestamp_idx, timestamp, data, good_stations, station_coo
 # 5. Visualization
 # =====================================================================
 
-def create_rgb_image(be, bn, bu, vmin=-1250, vmax=1250, std=750):
+def create_rgb_image(be, bn, bu, vmin=-1250, vmax=1250, std=500):
     """
     Create an RGB image from magnetic field components using statistical normalization.
     

@@ -9,14 +9,14 @@ Each component is mapped to a color channel in the RGB image:
 - Green: Northward component (Bn)
 - Blue: Upward component (Bu)
 
-The script reads magnetic field data for a specified time range and creates
-visualizations that help identify patterns in the magnetic field variations.
-Values are discretized to 256 levels (8-bit per channel) between vmin and vmax.
+The script uses statistical normalization based on the normal CDF to map magnetic
+field values to pixel intensities. This provides better dynamic range than linear
+mapping, with higher resolution near zero and graceful handling of extreme values.
 
 Usage:
 ------
 python secs_viz.py --start_date "2024-02-05 12:00" --end_date "2024-02-05 13:00" \
-                  --data_dir /path/to/secs/data --vmin -1250 --vmax 1250
+                  --data_dir /path/to/secs/data --std 500
 
 For detailed parameter descriptions, run:
 python secs_viz.py --help
@@ -54,11 +54,13 @@ def parse_arguments():
     parser.add_argument('--data_dir', type=str, default='/Users/akv020/Tensorflow/fennomag-net/data/secs', 
                         help='Directory containing SECS data')
     
-    # Value range for color mapping
+    # Statistical normalization parameters
     parser.add_argument('--vmin', type=float, default=-1250,
-                        help='Minimum value for color mapping (default: -1250 nT)')
+                        help='Minimum reference value (default: -1250 nT)')
     parser.add_argument('--vmax', type=float, default=1250,
-                        help='Maximum value for color mapping (default: 1250 nT)')
+                        help='Maximum reference value (default: 1250 nT)')
+    parser.add_argument('--std', type=float, default=500,
+                        help='Standard deviation for statistical normalization (default: 500 nT)')
     
     args = parser.parse_args()
     return args
@@ -98,7 +100,8 @@ def main():
     print("\n=== SECS Visualization Configuration ===")
     print(f"Analysis period: {start_date} to {end_date}")
     print(f"Data directory: {args.data_dir}")
-    print(f"Value range: {args.vmin} nT to {args.vmax} nT (discretized to 256 levels)")
+    print(f"Reference range: {args.vmin} nT to {args.vmax} nT")
+    print(f"Statistical normalization std: {args.std} nT")
     print("========================================\n")
     
     # Generate list of timestamps to process
@@ -117,8 +120,13 @@ def main():
             bn = load_magnetic_component(timestamp, 'Bn', args.data_dir)
             bu = load_magnetic_component(timestamp, 'Bu', args.data_dir)
             
-            # Create RGB image
-            rgb_image = create_rgb_image(be, bn, bu, vmin=args.vmin, vmax=args.vmax)
+            # Create RGB image using statistical normalization
+            rgb_image = create_rgb_image(
+                be, bn, bu, 
+                vmin=args.vmin, 
+                vmax=args.vmax, 
+                std=args.std
+            )
             
             # Save RGB image
             save_path = save_rgb_image(rgb_image, timestamp, args.data_dir)

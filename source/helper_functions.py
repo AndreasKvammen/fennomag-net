@@ -519,41 +519,52 @@ def process_timestamp(timestamp_idx, timestamp, data, good_stations, station_coo
 # 5. Visualization
 # =====================================================================
 
-def create_rgb_image(be, bn, bu, vmin=-1250, vmax=1250):
+def create_rgb_image(be, bn, bu, vmin=-1250, vmax=1250, std=750):
     """
-    Create an RGB image from magnetic field components.
+    Create an RGB image from magnetic field components using statistical normalization.
     
-    The function maps each component to a color channel:
+    The function maps each component to a color channel using a normal CDF mapping:
     - Red: Eastward component (Be)
     - Green: Northward component (Bn)
     - Blue: Upward component (Bu)
     
-    Values are discretized to 256 levels (8-bit per channel) between vmin and vmax.
+    Statistical normalization using the normal CDF:
+    1. For each value x, calculate Φ(x/σ) where Φ is the normal CDF
+    2. This maps the range (-∞,+∞) to (0,1) with 0 mapping to 0.5
+    3. Values within ±1σ use ~68% of the pixel range
+    4. Values within ±2σ use ~95% of the pixel range
     
     Args:
         be (numpy.ndarray): Eastward magnetic field component
         bn (numpy.ndarray): Northward magnetic field component
         bu (numpy.ndarray): Upward magnetic field component
-        vmin (float): Minimum value for normalization
-        vmax (float): Maximum value for normalization
+        vmin (float): Minimum expected value (for reference only)
+        vmax (float): Maximum expected value (for reference only)
+        std (float): Standard deviation parameter for normalization
+                     Controls the allocation of pixel values:
+                     - Smaller values give higher resolution near zero but compress extremes more
+                     - Larger values give more even distribution but less resolution near zero
         
     Returns:
         numpy.ndarray: RGB image array with values in [0, 255] (uint8)
     """
-    # Linear mapping from [vmin, vmax] to [0, 255]
-    def normalize_to_uint8(data):
-        # Clip values to the specified range
-        data_clipped = np.clip(data, vmin, vmax)
+    # Import scipy.stats for the normal CDF
+    from scipy.stats import norm
+    
+    def normalize_to_uint8_normal_dist(data):
+        # Calculate CDF values (between 0 and 1)
+        # This maps the data to a probability using the normal distribution
+        cdf_values = norm.cdf(data / std)
         
-        # Map from [vmin, vmax] to [0, 255]
-        normalized = ((data_clipped - vmin) / (vmax - vmin) * 255).astype(np.uint8)
+        # Map to 0-255 range for 8-bit pixel values
+        pixel_values = (cdf_values * 255).astype(np.uint8)
         
-        return normalized
+        return pixel_values
     
     # Normalize each component to 8-bit (0-255)
-    r = normalize_to_uint8(be)
-    g = normalize_to_uint8(bn)
-    b = normalize_to_uint8(bu)
+    r = normalize_to_uint8_normal_dist(be)
+    g = normalize_to_uint8_normal_dist(bn)
+    b = normalize_to_uint8_normal_dist(bu)
     
     # Stack the components to create an RGB image
     rgb = np.stack([r, g, b], axis=2)

@@ -1,0 +1,56 @@
+# Ignore specific data directory
+data/secs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Virtual environments
+venv/
+env/
+ENV/
+.env
+.venv
+env/
+
+# TensorFlow specific
+checkpoint
+*.ckpt
+*.ckpt.*
+*.pb
+*.pbtxt
+saved_model/
+saved_model.pb
+model.ckpt.*
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+logs/
+*.log 

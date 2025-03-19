@@ -50,6 +50,7 @@ model.ckpt.*
 *.swp
 *.swo
 .DS_Store
+.gitattributes
 
 # Logs
 logs/

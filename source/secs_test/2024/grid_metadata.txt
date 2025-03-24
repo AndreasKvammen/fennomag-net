@@ -3,5 +3,5 @@ grid_center_lat: 67.0
 grid_orientation: [1. 0.]
 grid_resolution: 150
 grid_shape_NS: 20
-grid_shape_EW: 14
+grid_shape_EW: 20
 Rgrid: 6481000.0

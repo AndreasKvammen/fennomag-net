@@ -1,5 +1,5 @@
 # Ignore specific data directory
-data/secs/
+data/
 
 # Python
 __pycache__/

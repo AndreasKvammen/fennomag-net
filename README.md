@@ -3,12 +3,16 @@
 A deep learning framework to forecast magnetic disturbances over Fennoscandia.
 
 <p align="center">
-  <img src="secs.gif" alt="animated" />
+  <video autoplay loop muted playsinline>
+    <source src="secs.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
 </p>
 
 ## Overview
 
 FennoMag-Net is a project aimed at forecasting geomagnetic disturbances over the Fennoscandian region using a combination of physics-based modeling and deep learning techniques. The system processes magnetometer data to reconstruct and predict the ionospheric current systems and resulting magnetic field variations.
+
 
 ## Key Components
 

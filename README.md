@@ -3,10 +3,7 @@
 A deep learning framework to forecast magnetic disturbances over Fennoscandia.
 
 <p align="center">
-  <video autoplay loop muted playsinline>
-    <source src="secs.mp4" type="video/mp4">
-    Your browser does not support the video tag.
-  </video>
+  <img src="secs.gif" alt="animated" />
 </p>
 
 ## Overview

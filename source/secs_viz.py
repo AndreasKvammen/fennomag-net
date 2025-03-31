@@ -113,7 +113,7 @@ def main():
     
     for i, timestamp in enumerate(timestamps):
         try:
-            print(f"Processing timestamp {i+1}/{total_timestamps}: {timestamp}")
+            #print(f"Processing timestamp {i+1}/{total_timestamps}: {timestamp}")
             
             # Load magnetic field components
             be = load_magnetic_component(timestamp, 'Be', args.data_dir)
@@ -131,7 +131,7 @@ def main():
             # Save RGB image
             save_path = save_rgb_image(rgb_image, timestamp, args.data_dir)
             
-            print(f"  Image saved to: {save_path}")
+            #print(f"  Image saved to: {save_path}")
             
         except FileNotFoundError as e:
             print(f"Error: {str(e)}")

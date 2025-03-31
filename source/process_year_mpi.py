@@ -13,6 +13,15 @@ Run with: mpiexec -n <num_processes> python process_year_mpi.py --year 2024
 """
 
 import os
+# Limit OpenMP threading
+os.environ["OMP_NUM_THREADS"] = "1"
+# Limit MKL threading
+os.environ["MKL_NUM_THREADS"] = "1"
+# Limit BLAS threading
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["BLAS_NUM_THREADS"] = "1"
+# Limit OpenMP threading
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
 import sys
 import subprocess
 import argparse

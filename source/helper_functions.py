@@ -588,7 +588,7 @@ def save_rgb_image(rgb_image, timestamp, data_dir):
     create_dir(figures_dir)
     
     # Create filename with timestamp
-    filename = f"secs_rgb_{timestamp.strftime('%Y%m%d_%H%M%S')}.png"
+    filename = f"{timestamp.strftime('%Y%m%d_%H%M%S')}.png"
     save_path = os.path.join(figures_dir, filename)
     
     # Save using PIL

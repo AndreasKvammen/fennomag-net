@@ -1,0 +1,476 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2821
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fnil\fcharset0 Menlo-Bold;\f1\fswiss\fcharset0 Helvetica;\f2\fnil\fcharset0 Menlo-Regular;
+\f3\froman\fcharset0 TimesNewRomanPSMT;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;\red207\green214\blue228;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;\cssrgb\c84706\c87059\c91373;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww24880\viewh26580\viewkind0
+\deftab720
+\pard\pardeftab720\sa428\partightenfactor0
+
+\f0\b\fs64 \cf2 \expnd0\expndtw0\kerning0
+Project Overview
+\f1\b0\fs32 \
+\pard\pardeftab720\sa320\partightenfactor0
+
+\f2 \cf2 The goal of this project is to build a neural network model to forecast magnetic field variations at the Earth's surface. The predictions will leverage two complementary datasets:
+\f1 \
+\pard\pardeftab720\li960\fi-960\sa320\partightenfactor0
+
+\f2 \cf2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Branch 1 (Large-scale dynamics): Solar wind and global-scale geophysical data.
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Branch 2 (Small-scale dynamics): High-resolution ground-based magnetometer data processed using the Spherical Elementary Current Systems (SECS) method.
+\f1 \
+\pard\pardeftab720\sa320\partightenfactor0
+
+\f2 \cf2 The model will output magnetic field variations at specific grid points for prediction horizons ranging from 1 minute up to 30 minutes into the future.
+\f1 \
+\pard\pardeftab720\sa428\partightenfactor0
+
+\f0\b\fs64 \cf2 Data Description and Problem Division
+\f1\b0\fs32 \
+\pard\pardeftab720\partightenfactor0
+
+\f2 \cf2 The data for both branches undergoes careful preprocessing to ensure proper training, validation, and testing splits while maintaining temporal coherence. The preprocessing pipeline is designed to handle the different temporal resolutions and lookback windows of each branch.
+\f1 \
+\pard\pardeftab720\partightenfactor0
+
+\f0\b\fs64 \cf2 \'a0
+\f1\b0\fs32 \
+\pard\pardeftab720\sa397\partightenfactor0
+
+\f0\b\fs48 \cf2 Branch 1: Solar and Geophysical Data (Large-Scale Dynamics)
+\f1\b0\fs32 \
+\pard\pardeftab720\sa320\partightenfactor0
+
+\f2 \cf2 Description: Time series data describing large-scale solar\'96magnetospheric conditions. Data Dimensions: (N \'d7 T1)
+\f1 \
+\pard\pardeftab720\li960\fi-960\sa320\partightenfactor0
+
+\f2 \cf2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 N = Number of parameters (features).
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 T1 = 96 timesteps (covering a 24-hour window at 15-minute resolution).
+\f1 \
+\pard\pardeftab720\sa320\partightenfactor0
+
+\f2 \cf2 Rationale: Captures global-scale conditions and overall magnetospheric state. The 24-hour window provides sufficient context for long-duration solar-terrestrial coupling dynamics.
+\f1 \
+
+\f2 Branch 1 Parameters:	
+\f1 \
+\pard\pardeftab720\li960\fi-960\sa320\partightenfactor0
+
+\f2 \cf2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Sunspot Number (solar magnetic activity proxy)
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 F10.7 Radio Flux (solar activity level proxy)
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Lyman Alpha (UV radiation affecting the ionosphere)
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Ap Index (daily geomagnetic activity measure)
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 SYM-H, SYM-D (global ring current intensity and variability)
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 ASY-H, ASY-D (asymmetric geomagnetic disturbances)
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 SME, SMU, SML (auroral electrojet currents dynamics)
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 DOY_sin/cos, TOD_sin/cos (seasonal and daily cyclic encodings)
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Solar Zenith Angle (solar illumination and ionospheric conductivity indicator)
+\fs24 \cf3  
+\f1\fs32 \cf2 \
+\pard\pardeftab720\sa320\partightenfactor0
+
+\f2\fs24 \cf3 \'a0
+\f1\fs32 \cf2 \
+\pard\pardeftab720\sa320\partightenfactor0
+
+\f2 \cf2 Data Processing Details:
+\f1 \
+\pard\pardeftab720\li960\sa320\partightenfactor0
+
+\f2 \cf2 \'95 Time-based Train/Val/Test Split: Data is chronologically split (70%/15%/15%) to maintain temporal causality
+\f1 \
+
+\f2 \'95 Windowing Approach:
+\f1 \
+
+\f2 \'a0 - Each observation consists of a 24-hour lookback window (96 timesteps at 15-minute resolution)
+\f1 \
+
+\f2 \'a0 - Windows are created using a sliding window approach with 15-minute stride
+\f1 \
+
+\f2 \'a0- This creates overlapping windows, enhancing training data utilization while preserving temporal patterns
+\f1 \
+
+\f2 \'95 Storage Format: Data is stored in TFRecord format, which:
+\f1 \
+
+\f2 \'a0 - Efficiently handles sequential data with variable-length features
+\f1 \
+
+\f2 - Each record contains:
+\f1 \
+
+\f2 \'a0\'a0\'a0 * Window data: 96\'d7N matrix of features
+\f1 \
+
+\f2 \'a0\'a0\'a0 * Window shape information for proper reconstruction
+\f1 \
+
+\f2 \'a0\'a0\'a0 * End timestamp for temporal reference
+\f1 \
+
+\f2 - Benefits:
+\f1 \
+
+\f2 * Optimized I/O performance for training
+\f1 \
+
+\f2 * Reduced memory footprint through batch loading
+\f1 \
+
+\f2 * Efficient parallel data loading during training
+\f1 \
+
+\f2 \'a0
+\f1 \
+\pard\pardeftab720\sa397\partightenfactor0
+
+\f0\b\fs48 \cf2 Branch 2: SECS-based Magnetometer Data (Small-Scale Dynamics)
+\f1\b0\fs32 \
+\pard\pardeftab720\sa320\partightenfactor0
+
+\f2 \cf2 Description: Image-based data created from ground-based magnetometer measurements processed via SECS. SECS Method: SECS reconstructs ionospheric currents from ground measurements, yielding a consistent spatial grid representation even with uneven magnetometer station coverage.
+\f1 \
+
+\f2 Data Dimensions: (W \'d7 H \'d7 C \'d7 T2)
+\f1 \
+\pard\pardeftab720\li960\fi-960\sa320\partightenfactor0
+
+\f2 \cf2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 W, H = Spatial dimensions (fixed 20\'d720 SECS grid; 150 km grid resolution).
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 C = 3 (RGB channels represent magnetic field components: Bx, By, Bz).
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 T2 = 180 timesteps (covering a 3-hour window at 1-minute resolution).
+\f1 \
+\pard\pardeftab720\sa320\partightenfactor0
+
+\f2 \cf2 Rationale: High-resolution data captures rapid ionospheric dynamics, critical for accurate short-term predictions, especially during substorms.
+\fs24 \cf3  
+\f1\fs32 \cf2 \
+
+\f2 Data Organization and Access
+\f1 \
+
+\f2 \'95 Directory Structure:
+\f1 \
+
+\f2 \'a0 - Separate directories for full dataset and test mode (single year)
+\f1 \
+
+\f2 \'a0 - Clear separation of train/validation/test sets
+\f1 \
+
+\f2 \'a0 - Metadata files tracking:
+\f1 \
+
+\f2 \'a0\'a0\'a0 * Data splits and time ranges
+\f1 \
+
+\f2 \'a0\'a0\'a0 * Feature names and dimensions
+\f1 \
+
+\f2 \'a0\'a0\'a0 * Preprocessing parameters
+\f1 \
+
+\f2 \'a0\'a0\'a0 * Window and stride configurations
+\f1 \
+
+\f2 \'a0
+\f1 \
+
+\f2 Testing and Development Pipeline
+\f1 \
+
+\f2 \'95 Test Mode Implementation:
+\f1 \
+
+\f2 \'a0 - Option to process single year for rapid prototyping
+\f1 \
+
+\f2 \'a0 - Maintains same preprocessing steps but on reduced dataset
+\f1 \
+
+\f2 \'a0 - Facilitates quick iteration on model architecture
+\f1 \
+
+\f2 \'95 Quality Control:
+\f1 \
+
+\f2 \'a0 - Visualization of data splits for verification
+\f1 \
+
+\f2 \'a0 - Example window plots for validation
+\f1 \
+
+\f2 \'a0 - Statistical summaries of processed data
+\f1 \
+
+\f2 \'a0
+\f1 \
+
+\f2 Rationale for Preprocessing Choices:
+\f1 \
+
+\f2 \'95 Sliding Windows with Overlap:
+\f1 \
+
+\f2 \'a0 - Maximizes data utilization
+\f1 \
+
+\f2 \'a0 - Provides smooth transitions between consecutive predictions
+\f1 \
+
+\f2 \'a0 - Helps model learn continuous temporal patterns
+\f1 \
+
+\f2 \'95 TFRecord Format:
+\f1 \
+
+\f2 \'a0 - Optimizes training pipeline efficiency
+\f1 \
+
+\f2 \'a0 - Handles large datasets with minimal memory overhead
+\f1 \
+
+\f2 \'a0 - Ensures reproducible data loading across experiments
+\f1 \
+
+\f2 \'95 Time-based Splitting:
+\f1 \
+
+\f2 \'a0 - Preserves temporal causality
+\f1 \
+
+\f2 \'a0 - Prevents data leakage
+\f1 \
+
+\f2 \'a0 - Enables realistic evaluation of model performance
+\f1 \
+
+\f2 \'a0
+\f1 \
+\pard\pardeftab720\sa428\partightenfactor0
+
+\f0\b\fs64 \cf2 Methodology (Network Architecture)
+\f1\b0\fs32 \
+\pard\pardeftab720\sa397\partightenfactor0
+
+\f0\b\fs48 \cf2 Overview of Proposed Approach
+\f1\b0\fs32 \
+\pard\pardeftab720\sa320\partightenfactor0
+
+\f2 \cf2 A multi-input neural network leveraging attention mechanisms (cross-attention) to explicitly model the interplay between:
+\f1 \
+\pard\pardeftab720\li960\fi-960\sa320\partightenfactor0
+
+\f2 \cf2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Large-scale dynamics (Branch 1)
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Small-scale localized dynamics (Branch 2)
+\f1 \
+\pard\pardeftab720\sa397\partightenfactor0
+
+\f0\b\fs48 \cf2 Attention Mechanisms (Conceptual Explanation)
+\f1\b0\fs32 \
+\pard\pardeftab720\sa320\partightenfactor0
+
+\f2 \cf2 Attention layers dynamically highlight important input features based on relevance. Cross-attention layers allow Branch 2 (small-scale) to explicitly query Branch 1 (large-scale), directly modeling interdependencies.
+\f1 \
+\pard\pardeftab720\sa397\partightenfactor0
+
+\f0\b\fs48 \cf2 Why Attention?
+\f1\b0\fs32 \
+\pard\pardeftab720\sa320\partightenfactor0
+
+\f2 \cf2 Attention inherently manages differences in temporal resolutions (15-min vs. 1-min) and lookback windows (24-hour vs. 3-hour), adaptively selecting relevant information without forced alignment.
+\f1 \
+\pard\pardeftab720\sa397\partightenfactor0
+
+\f0\b\fs48 \cf2 Detailed Network Structure
+\f1\b0\fs32 \
+\pard\pardeftab720\sa320\partightenfactor0
+
+\f2 \cf2 Stage 1: Feature Extraction
+\f1 \
+\pard\pardeftab720\li960\fi-960\sa320\partightenfactor0
+
+\f2 \cf2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Branch 1:
+\f1 \
+\pard\pardeftab720\li1920\fi-1920\sa320\partightenfactor0
+
+\f2 \cf2 \uc0\u9702 
+\f3\fs18\fsmilli9333 \'a0\'a0\'a0\'a0\'a0\'a0\'a0\'a0\'a0 
+\f2\fs32 Input: (N \'d7 T1); processed via LSTM.
+\f1 \
+
+\f2 \uc0\u9702 
+\f3\fs18\fsmilli9333 \'a0\'a0\'a0\'a0\'a0\'a0\'a0\'a0\'a0 
+\f2\fs32 Output: Embedding vector (B1)
+\f1 \
+\pard\pardeftab720\li960\fi-960\sa320\partightenfactor0
+
+\f2 \cf2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Branch 2:
+\f1 \
+\pard\pardeftab720\li1920\fi-1920\sa320\partightenfactor0
+
+\f2 \cf2 \uc0\u9702 
+\f3\fs18\fsmilli9333 \'a0\'a0\'a0\'a0\'a0\'a0\'a0\'a0\'a0 
+\f2\fs32 Input: (W \'d7 H \'d7 C \'d7 T2); processed via ConvLSTM.
+\f1 \
+
+\f2 \uc0\u9702 
+\f3\fs18\fsmilli9333 \'a0\'a0\'a0\'a0\'a0\'a0\'a0\'a0\'a0 
+\f2\fs32 Output: Embedding vector (B2)
+\f1 \
+\pard\pardeftab720\sa320\partightenfactor0
+
+\f2 \cf2 Stage 2: Cross-Attention Fusion
+\f1 \
+\pard\pardeftab720\li960\fi-960\sa320\partightenfactor0
+
+\f2 \cf2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Small-scale embedding (Branch 2) explicitly queries large-scale embedding (Branch 1).
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Produces combined embedding vector (B_att) representing large-small scale interactions.
+\f1 \
+\pard\pardeftab720\sa320\partightenfactor0
+
+\f2 \cf2 Stage 3: Decoder Stage (Prediction Output)
+\f1 \
+\pard\pardeftab720\li960\fi-960\sa320\partightenfactor0
+
+\f2 \cf2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Combined embedding (B_att) fed into decoder network (CNN or FC layers).
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Outputs magnetic field predictions for center 5\'d75 SECS grid points, for horizons: 1, 5, 10, 15, up to 30 minutes.
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Output shape: (X \'d7 Y \'d7 B x Tp), where X = Y = 5, B is the 3D magnetic component vector and Tp is the number of prediction horizons.
+\f1 \
+\pard\pardeftab720\sa428\partightenfactor0
+
+\f0\b\fs64 \cf2 Practical Implementation Notes
+\f1\b0\fs32 \
+\pard\pardeftab720\li960\fi-960\sa320\partightenfactor0
+
+\f2 \cf2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Clearly separate preprocessing pipelines for Branch 1 (time series) and Branch 2 (images).
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Clearly implement embedding extraction per branch.
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Use explicit attention modules (e.g., Multi-Head Cross-Attention layers) for fusing embeddings.
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Include flexibility in embedding sizes (B1, B2, and B_att) for experimentation.
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Comment code clearly, particularly attention modules, for clarity and reproducibility.
+\f1 \
+\pard\pardeftab720\sa428\partightenfactor0
+
+\f0\b\fs64 \cf2 Expected Benefits of This Approach
+\f1\b0\fs32 \
+\pard\pardeftab720\li960\fi-960\sa320\partightenfactor0
+
+\f2 \cf2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Explicit modeling of interactions between global and local dynamics.
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Robustness to heterogeneous datasets.
+\f1 \
+
+\f2 \'95
+\f3\fs18\fsmilli9333  
+\f2\fs32 Enhanced interpretability through attention visualization.
+\f1 \
+\pard\pardeftab720\partightenfactor0
+\cf2 \'a0\
+}

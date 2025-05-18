@@ -1,0 +1,19 @@
+{
+    "temporal_params": {
+        "branch1_lookback": 96,
+        "branch2_lookback": 180,
+        "forecast_horizon": 15,
+        "batch_size": 32
+    },
+    "model_params": {
+        "embedding_dim": 64,
+        "num_heads": 4,
+        "dropout_rate": 0.2
+    },
+    "training_params": {
+        "epochs": 100,
+        "learning_rate": 0.001,
+        "min_lr": 1e-06,
+        "patience": 10
+    }
+}
